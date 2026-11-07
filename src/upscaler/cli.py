@@ -45,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tile", type=_size, default=None, help="treat input as a sheet of TILE-sized frames, e.g. 24 or 24x24")
     ap.add_argument("--method", choices=["adaptive", "fixed"], default="adaptive",
                     help="downsample grid: adaptive aligns blocks to edges (default); fixed is an even grid")
+    ap.add_argument("--upscaler", choices=["nearest", "mmpx"], default="nearest",
+                    help="2x step before the downsample: nearest doubles pixels (default, keeps 1px lines crisp); mmpx smooths diagonals but thickens dark outlines")
+    ap.add_argument("--no-thin", dest="thin", action="store_false",
+                    help="skip the pass that trims 2px runs back to 1px where the source line was 1px")
     ap.add_argument("--compare", action="store_true", help="also write a zoomed side-by-side *_compare.png")
     ap.add_argument("--zoom", type=int, default=8, help="zoom for --compare (default 8)")
     args = ap.parse_args(argv)
@@ -63,9 +67,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             src = Image.open(f).convert("RGBA")
             if args.tile:
-                out = rescale_sheet(src, *args.tile, tw, th, method=args.method)
+                out = rescale_sheet(src, *args.tile, tw, th, method=args.method, thin=args.thin,
+                                    upscaler=args.upscaler)
             else:
-                out = rescale(src, tw, th, method=args.method)
+                out = rescale(src, tw, th, method=args.method, thin=args.thin, upscaler=args.upscaler)
         except Exception as e:  # keep going so one bad file doesn't stop a batch
             print(f"FAIL {f}: {e}", file=sys.stderr)
             failed += 1

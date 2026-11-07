@@ -90,6 +90,68 @@ def test_1px_horizontal_line_stays_1px_at_every_offset():
         assert thick == 1, f"line at y={y} came out {thick}px thick"
 
 
+def test_thin_pass_fixes_fixed_grid_doubling():
+    # A fixed grid doubles the line at y=4; the thinning pass should undo that on its own.
+    # The line sits on an opaque fill, because thinning never trims into transparency.
+    rows = ["." * 24] * 24
+    rows = rows[:4] + ["...." + "#" * 16 + "...."] + rows[5:]
+    im = img_from(rows, {".": RED, "#": BLACK})
+    px = rescale(im, 32, 32, method="fixed", thin=False).load()
+    assert sum(px[16, y] == BLACK for y in range(32)) == 2
+    px = rescale(im, 32, 32, method="fixed", thin=True).load()
+    assert sum(px[16, y] == BLACK for y in range(32)) == 1
+
+
+def test_thin_pass_keeps_thick_features_and_outline_connected():
+    # A filled disc with a 1px outline. The 3px-thick fill must stay thick,
+    # and the outline must stay one 8-connected loop.
+    size, r = 24, 9
+    rows = []
+    for y in range(size):
+        row = ""
+        for x in range(size):
+            d = ((x - 11.5) ** 2 + (y - 11.5) ** 2) ** 0.5
+            row += "#" if r - 1 <= d < r else ("o" if d < r - 1 else ".")
+        rows.append(row)
+    out = rescale(img_from(rows, {".": CLEAR, "#": BLACK, "o": RED}), 32, 32)
+    px = out.load()
+    outline = {(x, y) for y in range(32) for x in range(32) if px[x, y] == BLACK}
+    start = next(iter(outline))
+    seen, stack = {start}, [start]
+    while stack:
+        x, y = stack.pop()
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                n = (x + dx, y + dy)
+                if n in outline and n not in seen:
+                    seen.add(n)
+                    stack.append(n)
+    assert seen == outline, "outline was broken into pieces"
+    assert sum(px[x, 16] == RED for x in range(32)) >= 15
+
+
+def test_thin_pass_never_changes_the_silhouette():
+    # Thinning may only recolour opaque pixels to other opaque colours.
+    from pathlib import Path
+    src = Image.open(Path(__file__).parent.parent / "examples" / "slime_24.png")
+    a = rescale(src, 32, 32, thin=False).getchannel("A")
+    b = rescale(src, 32, 32, thin=True).getchannel("A")
+    assert a.tobytes() == b.tobytes()
+
+
+def test_double_outline_keeps_both_rims():
+    # A 1px pink rim outside a 1px navy outline (the ghost sprites). Neither
+    # should be eaten, at any offset.
+    PINK, NAVY, WHITE = (250, 180, 240, 255), (0, 0, 98, 255), (255, 255, 255, 255)
+    for y in range(3, 8):
+        rows = ["." * 24] * 24
+        rows = rows[:y] + ["...." + "p" * 16 + "....", "...." + "n" * 16 + "...."] + \
+            ["...." + "w" * 16 + "...."] * (24 - y - 2)
+        out = rescale(img_from(rows, {".": CLEAR, "p": PINK, "n": NAVY, "w": WHITE}), 32, 32)
+        col = [out.getpixel((16, yy)) for yy in range(32)]
+        assert col.count(PINK) == 1 and col.count(NAVY) == 1, f"offset {y}: {col.count(PINK)} pink, {col.count(NAVY)} navy"
+
+
 def test_fixed_method_still_available():
     im = Image.new("RGBA", (24, 24), RED)
     assert colors(rescale(im, 32, 32, method="fixed")) == {RED}

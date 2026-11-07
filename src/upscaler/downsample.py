@@ -156,6 +156,13 @@ def adaptive_spans(
 
 
 def mode_downsample(src: Grid, width: int, height: int, method: str = "adaptive") -> Grid:
+    return mode_downsample_spans(src, width, height, method)[0]
+
+
+def mode_downsample_spans(
+    src: Grid, width: int, height: int, method: str = "adaptive"
+) -> tuple[Grid, list[Span], list[Span]]:
+    """Like mode_downsample, but also returns the column spans and row spans it used."""
     if method == "fixed":
         xs, ys = fixed_spans(src.width, width), fixed_spans(src.height, height)
     elif method == "adaptive":
@@ -172,7 +179,7 @@ def mode_downsample(src: Grid, width: int, height: int, method: str = "adaptive"
             block = [src.pixels[y * src.width + x] for y in range(y0, y1) for x in range(x0, x1)]
             cx, cy = (x0 + x1 - 1) // 2, (y0 + y1 - 1) // 2
             out.append(_vote(block, src.pixels[cy * src.width + cx]))
-    return Grid(width, height, out)
+    return Grid(width, height, out), xs, ys
 
 
 def _vote(block: list[int], center: int) -> int:
