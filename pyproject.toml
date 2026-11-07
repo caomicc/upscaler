@@ -1,0 +1,17 @@
+[project]
+name = "upscaler"
+version = "0.1.0"
+description = "Palette-preserving pixel-art rescaler (e.g. 24x24 -> 32x32) via MMPX + mode downsampling"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["pillow>=10"]
+
+[project.scripts]
+upscaler = "upscaler.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
